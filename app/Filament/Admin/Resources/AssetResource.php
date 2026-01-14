@@ -110,7 +110,39 @@ class AssetResource extends Resource
                 ->placeholder('-') // Jika kosong strip
                 ->searchable(),
 
-            Tables\Columns\TextColumn::make('posisi_awal')->label('Lokasi'),
+            Tables\Columns\TextColumn::make('posisi_awal')
+                ->label('Lokasi / Posisi')
+                ->getStateUsing(function ($record) {
+                    // Load data peminjam
+                    $record->load('activeBooking.member');
+                    
+                    if ($record->activeBooking) {
+                        $member = $record->activeBooking->member;
+                        $nama = $member->nama ?? 'Anggota';
+                        
+                        // Cek kelengkapan alamat
+                        // Gabung: Alamat + Desa + Kota
+                        $alamat = collect([
+                            $member->alamat, 
+                            $member->desa, 
+                            $member->kota
+                        ])->filter()->join(', ');
+
+                        if (!empty($alamat)) {
+                            // Jika alamat lengkap: "Jl. Mawar No 5 (Fahmi)"
+                            return "{$alamat} ({$nama})";
+                        }
+                        
+                        // Jika alamat kosong, kasih peringatan ke admin
+                        return "⚠ ({$nama}) belum set alamat";
+                    }
+
+                    // Jika tidak dipinjam, kembali ke lokasi gudang
+                    return $record->posisi_awal ?? 'Gudang';
+                })
+                ->wrap() // Agar teks panjang turun ke bawah
+                ->icon(fn ($state) => str_contains($state, 'belum set') ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-map-pin')
+                ->color(fn ($state) => str_contains($state, 'belum set') ? 'danger' : 'gray'),
         ])
         ->filters([
             // Filter aset yang sedang dipinjam (Relasi ada isinya)

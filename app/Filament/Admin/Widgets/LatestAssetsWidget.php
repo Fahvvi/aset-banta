@@ -15,7 +15,7 @@ class LatestAssetsWidget extends BaseWidget
     // Memenuhi lebar layar
     protected int | string | array $columnSpan = 'full';
 
-    // Urutan tampilan (biar ada di bawah Stats)
+    // Urutan tampilan
     protected static ?int $sort = 2;
 
     public function table(Table $table): Table
@@ -57,10 +57,37 @@ class LatestAssetsWidget extends BaseWidget
                         default => 'heroicon-m-x-circle',
                     }),
 
+                // --- UPDATE LOGIKA LOKASI DISINI ---
                 Tables\Columns\TextColumn::make('posisi_awal')
-                    ->label('Lokasi')
-                    ->icon('heroicon-m-map-pin')
-                    ->color('gray'),
+                    ->label('Lokasi Terkini')
+                    ->getStateUsing(function ($record) {
+                        // Cek peminjaman
+                        if ($record->activeBooking) {
+                            $member = $record->activeBooking->member;
+                            $nama = $member->nama ?? 'Anggota';
+                            
+                            // Gabung alamat (Alamat + Desa + Kota)
+                            $alamat = collect([
+                                $member->alamat, 
+                                $member->desa, 
+                                $member->kota
+                            ])->filter()->join(', ');
+
+                            // Jika alamat ada, tampilkan lengkap
+                            if (!empty($alamat)) {
+                                return "{$alamat} ({$nama})";
+                            }
+                            
+                            // Jika alamat kosong, beri peringatan
+                            return "⚠ ({$nama}) belum set alamat";
+                        }
+
+                        // Jika tidak dipinjam, kembalikan posisi awal
+                        return $record->posisi_awal ?? 'Gudang';
+                    })
+                    ->wrap() // Agar teks panjang turun ke bawah
+                    ->icon(fn ($state) => str_contains($state, 'belum set') ? 'heroicon-m-exclamation-triangle' : 'heroicon-m-map-pin')
+                    ->color(fn ($state) => str_contains($state, 'belum set') ? 'danger' : 'gray'),
             ])
             ->paginated([5, 10]);
     }

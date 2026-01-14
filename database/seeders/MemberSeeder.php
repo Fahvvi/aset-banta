@@ -10,8 +10,9 @@ class MemberSeeder extends Seeder
 {
     public function run(): void
 
-    $this->call(MemberSeeder::class);
+
     {
+            $this->call(MemberSeeder::class);
         // Reset tabel dulu biar tidak duplikat
         DB::statement('SET FOREIGN_KEY_CHECKS=0;');
         DB::table('members')->truncate();

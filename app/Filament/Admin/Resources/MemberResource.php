@@ -19,8 +19,9 @@ class MemberResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
     
-    protected static ?string $navigationLabel = 'Daftar Anggota'; 
+    protected static ?string $navigationLabel = 'Members'; 
     protected static ?string $modelLabel = 'Anggota';
+    protected static ?string $pluralModelLabel = 'Anggota'; // Label jamak (biar ga jadi Anggotas)
 
     public static function form(Form $form): Form
     {
