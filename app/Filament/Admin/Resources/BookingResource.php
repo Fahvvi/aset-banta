@@ -4,6 +4,9 @@ namespace App\Filament\Admin\Resources;
 
 use App\Filament\Admin\Resources\BookingResource\Pages;
 use App\Filament\Admin\Resources\BookingResource\RelationManagers;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use App\Models\Booking;
 use Filament\Forms;
 use Filament\Forms\Form;
@@ -68,69 +71,113 @@ class BookingResource extends Resource
     public static function table(Table $table): Table
 {
     return $table
+        // 1. URUTKAN DARI YANG TERBARU (Default Sort)
+        ->defaultSort('created_at', 'desc') 
+        
         ->columns([
             Tables\Columns\TextColumn::make('member.nama')
                 ->label('Peminjam')
-                ->searchable()
-                ->weight('bold'),
+                ->searchable() // Bisa dicari lewat searchbox global
+                ->sortable(),
 
             Tables\Columns\TextColumn::make('asset.nama_alat')
-                ->label('Barang'),
+                ->label('Barang')
+                ->searchable(),
 
             Tables\Columns\TextColumn::make('tanggal_mulai')
-                ->date('d M Y')
-                ->label('Mulai'),
+                ->label('Mulai')
+                ->dateTime('d M Y H:i')
+                ->sortable(),
 
             Tables\Columns\TextColumn::make('tanggal_selesai')
-                ->date('d M Y')
-                ->label('Selesai'),
+                ->label('Selesai')
+                ->dateTime('d M Y H:i')
+                ->sortable(),
 
             Tables\Columns\TextColumn::make('status')
                 ->badge()
                 ->color(fn (string $state): string => match ($state) {
-                    'pending' => 'warning',   // Kuning
-                    'approved' => 'success',  // Hijau
-                    'rejected' => 'danger',   // Merah
-                    'returned' => 'gray',     // Abu-abu
+                    'pending' => 'warning',
+                    'approved' => 'success',
+                    'rejected' => 'danger',
+                    'returned' => 'gray',
+                    default => 'gray',
                 }),
         ])
-        ->defaultSort('created_at', 'desc')
+        
+        // 2. FILTER CANGGIH (Peminjam, Tanggal, Status)
+        ->filters([
+            // Filter A: Berdasarkan Status
+            SelectFilter::make('status')
+                ->options([
+                    'pending' => 'Pending (Menunggu)',
+                    'approved' => 'Approved (Disetujui)',
+                    'returned' => 'Returned (Selesai)',
+                    'rejected' => 'Rejected (Ditolak)',
+                ]),
+
+            // Filter B: Berdasarkan Nama Peminjam (Searchable Dropdown)
+            SelectFilter::make('member_id')
+                ->label('Filter Peminjam')
+                ->relationship('member', 'nama') // Ambil data dari relasi Member
+                ->searchable() // Bisa ketik nama
+                ->preload(),   // Load data di awal biar cepat
+
+            // Filter C: Berdasarkan Rentang Tanggal (Date Range)
+            Filter::make('tanggal')
+                ->form([
+                    DatePicker::make('dari_tanggal')->label('Dari Tanggal'),
+                    DatePicker::make('sampai_tanggal')->label('Sampai Tanggal'),
+                ])
+                ->query(function (Builder $query, array $data): Builder {
+                    return $query
+                        ->when(
+                            $data['dari_tanggal'],
+                            fn (Builder $query, $date): Builder => $query->whereDate('tanggal_mulai', '>=', $date),
+                        )
+                        ->when(
+                            $data['sampai_tanggal'],
+                            fn (Builder $query, $date): Builder => $query->whereDate('tanggal_mulai', '<=', $date),
+                        );
+                })
+        ])
+        
+        // 3. PAGINATION (Hanya tampil 5 baris di awal)
+        ->paginated([5, 10, 25, 50]) 
+        
         ->actions([
-            // TOMBOL APPROVE
+            // ... (Kode tombol actions Anda yang sebelumnya: Approve, Reject, dll) ...
+            // Pastikan Anda copy-paste tombol actions yang sudah kita buat tadi disini
             Tables\Actions\Action::make('approve')
                 ->label('Setujui')
-                ->icon('heroicon-m-check')
+                ->icon('heroicon-m-check-circle')
                 ->color('success')
                 ->requiresConfirmation()
-                ->visible(fn (Booking $record) => $record->status === 'pending')
-                ->action(function (Booking $record) {
-                    // Ubah status booking jadi approved
-                    $record->update(['status' => 'approved']);
+                ->action(fn (Booking $record) => $record->update(['status' => 'approved']))
+                ->visible(fn (Booking $record) => $record->status === 'pending'),
 
-                    // Opsional: Update status aset jadi 'dipinjam' secara otomatis
-                    // $record->asset->update([
-                    //     'peminjam_terbaru_id' => $record->member_id,
-                    //     'sudah_dikembalikan' => false
-                    // ]);
-                }),
-
-            // TOMBOL REJECT
             Tables\Actions\Action::make('reject')
                 ->label('Tolak')
-                ->icon('heroicon-m-x-mark')
+                ->icon('heroicon-m-x-circle')
                 ->color('danger')
                 ->requiresConfirmation()
-                ->visible(fn (Booking $record) => $record->status === 'pending')
-                ->action(fn (Booking $record) => $record->update(['status' => 'rejected'])),
+                ->action(fn (Booking $record) => $record->update(['status' => 'rejected']))
+                ->visible(fn (Booking $record) => $record->status === 'pending'),
 
-                // Di dalam ->actions([...])
+            Tables\Actions\Action::make('return')
+                ->label('Selesai')
+                ->icon('heroicon-m-arrow-left-on-rectangle')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->action(fn (Booking $record) => $record->update(['status' => 'returned']))
+                ->visible(fn (Booking $record) => $record->status === 'approved'),
 
-            Tables\Actions\Action::make('pdf') 
-                ->label('Cetak Surat')
+            Tables\Actions\EditAction::make(),
+            Tables\Actions\Action::make('cetak')
+                ->label('Cetak')
                 ->icon('heroicon-m-printer')
                 ->url(fn (Booking $record) => route('booking.print', $record))
-                ->openUrlInNewTab()
-                ->visible(fn (Booking $record) => $record->status === 'approved'), // Hanya muncul kalau sudah diapprove
+                ->openUrlInNewTab(),
         ]);
 }
 
