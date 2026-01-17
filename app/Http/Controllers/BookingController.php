@@ -10,6 +10,56 @@ use Carbon\Carbon;
 
 class BookingController extends Controller
 {
+    public function checkAvailability(Request $request)
+        {
+            // 1. Ambil data dari input Javascript
+        $assetIds = $request->input('asset_ids', []); // Array ID alat
+        $startDate = $request->input('tgl_mulai_date');
+        $startTime = $request->input('tgl_mulai_time');
+        $endDate = $request->input('tgl_selesai_date');
+        $endTime = $request->input('tgl_selesai_time');
+
+         // Jika data tanggal belum lengkap, anggap tersedia dulu (jangan error)
+        if (!$startDate || !$endDate || empty($assetIds)) {
+            return response()->json(['available' => true]);
+        }
+
+        // Gabungkan tanggal dan waktu
+        $start = $startDate . ' ' . ($startTime ?? '00:00:00');
+        $end = $endDate . ' ' . ($endTime ?? '23:59:59');
+
+        foreach ($assetIds as $assetId) {
+            // Cek Bentrok Waktu
+            $conflict = Booking::where('asset_id', $assetId)
+                ->whereIn('status', ['approved', 'pending']) // Cek yang statusnya aktif
+                ->where(function ($query) use ($start, $end) {
+                    $query->where('tanggal_mulai', '<', $end)
+                          ->where('tanggal_selesai', '>', $start);
+                })
+                ->first(); // Ambil data booking yang bentrok (jika ada)
+
+            if ($conflict) {
+                // Ambil nama alat
+                $asset = Asset::find($assetId);
+                
+                // Format tanggal biar enak dibaca
+                $bookedStart = \Carbon\Carbon::parse($conflict->tanggal_mulai)->format('d M H:i');
+                $bookedEnd = \Carbon\Carbon::parse($conflict->tanggal_selesai)->format('d M H:i');
+
+                return response()->json([
+                    'available' => false,
+                    'message' => "Alat '{$asset->nama_alat}' sudah dibooking pada tanggal {$bookedStart} s/d {$bookedEnd}. Silakan cari tanggal lain atau hapus alat tersebut."
+                ]);
+            }
+        }
+
+        // Jika lolos semua cek
+        return response()->json(['available' => true]);
+    }
+
+
+
+
     public function create()
     {
         $assets = Asset::where('status_alat', '!=', 'Rusak')->get();
@@ -74,8 +124,9 @@ class BookingController extends Controller
     
                      // UBAH DARI 'approved' MENJADI 'pending'
                 'status' => 'pending', 
-]);
+        ]);
             }
+
 
             return redirect('/')->with('success', 'Booking berhasil diajukan!');
 

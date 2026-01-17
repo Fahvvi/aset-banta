@@ -12,6 +12,7 @@ use Filament\Tables\Table;
 // Import komponen untuk gambar
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Filters\SelectFilter;
 
 class MemberResource extends Resource
 {
@@ -146,10 +147,30 @@ class MemberResource extends Resource
                     }),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('status')
+                // FILTER 1: STATUS
+                SelectFilter::make('status')
                     ->options([
                         'Aktif' => 'Aktif',
                         'Alumni' => 'Alumni',
+                        'Tidak Aktif' => 'Tidak Aktif',
+                    ]),
+
+                // FILTER 2: ANGKATAN (BARU)
+                SelectFilter::make('generasi')
+                    ->label('Filter Angkatan')
+                    ->searchable() // Agar mudah dicari jika listnya panjang
+                    ->options([
+                        'Founder' => 'Founder',
+                        'Perintis Rimba (Pelopor)' => 'Perintis Rimba (Pelopor)',
+                        'Air Belantara (Perintis)' => 'Air Belantara (Perintis)',
+                        'Benih Pohon (1)' => 'Benih Pohon (1)',
+                        'Tunas Muda (2)' => 'Tunas Muda (2)',
+                        'Jaya Wijaya (3)' => 'Jaya Wijaya (3)',
+                        'Edelweiss (4)' => 'Edelweiss (4)',
+                        'Water Source (5)' => 'Water Source (5)',
+                        'Rafflesia (6)' => 'Rafflesia (6)',
+                        'Bintang Rimba (7)' => 'Bintang Rimba (7)',
+                        'Anggota Kehormatan' => 'Anggota Kehormatan',
                     ]),
             ])
             ->actions([

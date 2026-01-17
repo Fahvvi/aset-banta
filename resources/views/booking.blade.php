@@ -168,8 +168,17 @@
                     <textarea name="keperluan" rows="3" class="block w-full rounded-xl border-gray-200 bg-gray-50/50 p-4 text-sm focus:bg-white resize-none" placeholder="Jelaskan tujuan peminjaman alat ini..." required></textarea>
                 </div>
 
+                <div id="availabilityError" class="hidden mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-r shadow-sm transition-all duration-300">
+                    <div class="flex items-start">
+                    <div class="py-1"><svg class="h-6 w-6 text-red-500 mr-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div>
+                    <div>
+                    <p class="font-bold">Jadwal Bentrok!</p>
+                    <p class="text-sm" id="availabilityErrorMessage">Pesan error akan muncul di sini...</p>
+                    </div>
+    </div>
+                </div>
                 <div class="pt-4">
-                    <button type="submit" class="w-full btn-modern text-white font-bold py-4 rounded-xl shadow-xl flex items-center justify-center gap-2 group">
+                    <button type="submit" class="w-full btn-modern text-white font-bold py-4 rounded-xl shadow-xl flex items-center justify-center gap-2 group" id="submitBtn">
                         <span>AJUKAN PEMINJAMAN</span>
                         <svg class="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path></svg>
                     </button>
@@ -279,6 +288,99 @@
                 hiddenInput.reportValidity();
             }
         });
+
+        // --- 4. REAL-TIME AVAILABILITY CHECKER ---
+    const submitBtn = document.getElementById('submitBtn');
+    const errorBox = document.getElementById('availabilityError');
+    const errorMessage = document.getElementById('availabilityErrorMessage');
+
+    // Kumpulkan semua input yang mempengaruhi jadwal
+    function getBookingInputs() {
+        return {
+            tgl_mulai_date: document.querySelector('input[name="tgl_mulai_date"]').value,
+            tgl_mulai_time: document.querySelector('select[name="tgl_mulai_time"]').value,
+            tgl_selesai_date: document.querySelector('input[name="tgl_selesai_date"]').value,
+            tgl_selesai_time: document.querySelector('select[name="tgl_selesai_time"]').value,
+            // Ambil semua asset_id dari dropdown dynamic row
+            asset_ids: Array.from(document.querySelectorAll('select[name="asset_ids[]"]'))
+                            .map(select => select.value)
+                            .filter(val => val !== "") // Hanya yang sudah dipilih
+        };
+    }
+
+    // Fungsi Pengecekan ke Server
+    async function checkAvailability() {
+        const data = getBookingInputs();
+
+        // Jangan cek kalau tanggal / alat belum dipilih
+        if (!data.tgl_mulai_date || !data.tgl_selesai_date || data.asset_ids.length === 0) {
+            hideError();
+            return;
+        }
+
+        try {
+            // Tampilkan loading di tombol (opsional UX)
+            const originalText = submitBtn.innerHTML;
+            submitBtn.innerHTML = '<span class="animate-pulse">Mengecek Jadwal...</span>';
+            submitBtn.disabled = true;
+
+            const response = await fetch('{{ route("booking.check") }}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}'
+                },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+
+            // Kembalikan tombol
+            submitBtn.innerHTML = originalText;
+
+            if (result.available === false) {
+                // JIKA BENTROK
+                showError(result.message);
+                submitBtn.disabled = true; // Matikan tombol
+                submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+            } else {
+                // JIKA AMAN
+                hideError();
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            }
+
+        } catch (error) {
+            console.error('Error checking availability:', error);
+        }
+    }
+
+    function showError(msg) {
+        errorMessage.innerText = msg;
+        errorBox.classList.remove('hidden');
+    }
+
+    function hideError() {
+        errorBox.classList.add('hidden');
+    }
+
+    // --- PASANG LISTENER (PENGAWAS) ---
+    // Setiap kali user ubah tanggal/waktu, jalankan cek
+    const dateInputs = document.querySelectorAll('input[type="date"], select[name$="_time"]');
+    dateInputs.forEach(input => {
+        input.addEventListener('change', checkAvailability);
+    });
+
+    // Setiap kali user ubah/tambah alat, jalankan cek
+    // Kita gunakan 'change' pada container agar mendeteksi select baru juga
+    document.getElementById('assetContainer').addEventListener('change', function(e) {
+        if (e.target.tagName === 'SELECT') {
+            checkAvailability();
+        }
+    });
+
+    // Panggil sekali saat load (kali aja form keisi otomatis browser)
+    checkAvailability();
     </script>
 
 </body>

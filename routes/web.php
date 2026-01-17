@@ -84,4 +84,5 @@ Route::post('/booking', [BookingController::class, 'store'])->name('booking.stor
 Route::get('/booking/{booking}/print', [PdfController::class, 'cetakSuratJalan'])->name('booking.print');
 
 
-        
+// 5. Route untuk Cek Ketersediaan via AJAX (dari form booking
+Route::post('/booking/check', [BookingController::class, 'checkAvailability'])->name('booking.check');
